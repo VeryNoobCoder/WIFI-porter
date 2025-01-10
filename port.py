@@ -15,8 +15,9 @@ def scan_network_and_probe(ip_range):
             # Probe device for open ports and hostnames
             device_info['hostname'] = socket.gethostbyaddr(received.psrc)[0]
             device_info['open_ports'] = scan_ports(received.psrc)
-        except Exception:
+        except (socket.herror, socket.gaierror, socket.timeout) as e:
             device_info['hostname'] = "Unknown"
+            print(f"Hostname lookup failed for {received.psrc}: {e}")
         devices.append(device_info)
     return devices
 
