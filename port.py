@@ -7,18 +7,32 @@ def scan_network_and_probe(ip_range):
     arp_request = ARP(pdst=ip_range)
     broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")
     arp_request_broadcast = broadcast / arp_request
-    answered, _ = srp(arp_request_broadcast, timeout=2, verbose=False)
+
+    try:
+        answered, _ = srp(arp_request_broadcast, timeout=2, verbose=False)
+    except PermissionError:
+        print("Permission denied. Please run this script with elevated privileges (e.g., 'sudo').")
+        exit(1)
 
     for sent, received in answered:
         device_info = {'ip': received.psrc, 'mac': received.hwsrc}
+
+        # Try to get hostname
         try:
-            # Probe device for open ports and hostnames
             device_info['hostname'] = socket.gethostbyaddr(received.psrc)[0]
-            device_info['open_ports'] = scan_ports(received.psrc)
         except (socket.herror, socket.gaierror, socket.timeout) as e:
             device_info['hostname'] = "Unknown"
             print(f"Hostname lookup failed for {received.psrc}: {e}")
+
+        # Try to scan ports
+        try:
+            device_info['open_ports'] = scan_ports(received.psrc)
+        except Exception as e:
+            device_info['open_ports'] = []
+            print(f"Port scanning failed for {received.psrc}: {e}")
+
         devices.append(device_info)
+
     return devices
 
 def scan_ports(ip):
@@ -34,7 +48,9 @@ if __name__ == "__main__":
     network_range = "192.168.1.1/24"
     print(f"Scanning network: {network_range}...\n")
     devices = scan_network_and_probe(network_range)
+    
     print("IP Address\tMAC Address\t\tHostname\t\tOpen Ports")
     print("-" * 80)
     for device in devices:
-        print(f"{device['ip']}\t{device['mac']}\t{device['hostname']}\t{device['open_ports']}")
+        open_ports_str = ", ".join(map(str, device['open_ports'])) if device['open_ports'] else "None"
+        print(f"{device['ip']}\t{device['mac']}\t{device['hostname']}\t{open_ports_str}")
